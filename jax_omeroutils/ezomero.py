@@ -564,6 +564,37 @@ def get_group_id(conn, group_name):
     return None
 
 
+def get_user_id(conn, user_name):
+    """Get ID of a user based on user name.
+
+    Must be an exact match. Case sensitive.
+
+    Parameters
+    ----------
+    conn : ``omero.gateway.BlitzGateway`` object
+        OMERO connection.
+    user_name : str
+        Name of the user for which an ID is to be returned.
+
+    Returns
+    -------
+    user_id : int
+        ID of the OMERO user. Returns `None` if group cannot be found.
+
+    Examples
+    --------
+    >>> get_user_id(conn, "jaxl")
+    35
+    """
+    if type(user_name) is not str:
+        raise TypeError('OMERO user name must be a string')
+
+    for u in conn.containedExperimenters(1):
+        if u.getName() == user_name:
+            return u.getId()
+    return None
+
+
 # puts
 def put_map_annotation(conn, map_ann_id, kv_dict, ns=None):
     """Update an existing map annotation with new values (kv pairs)
