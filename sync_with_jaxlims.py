@@ -71,20 +71,24 @@ def main(md_filepath, user_name, group, admin_user, server, port):
 def set_or_create_project(conn, project_name):
     ps = conn.getObjects('Project', attributes={'name': project_name})
     ps = list(ps)
+    print(ps)
     if len(ps) == 0:
         project_id = post_project(conn, project_name)
     else:
-        project_id = ps[0]
+        project_id = ps[0].getId()
     return project_id
 
 
 def set_or_create_dataset(conn, project_id, dataset_name):
-    ds = conn.getObjects('Dataset', opts={'project': project_id})
+    ds = conn.getObjects('Dataset',
+                         attributes={'name': dataset_name},
+                         opts={'project': project_id})
     ds = list(ds)
+    print(ds)
     if len(ds) == 0:
-        dataset_id = post_dataset(conn, dataset_name)
+        dataset_id = post_dataset(conn, dataset_name, project_id=project_id)
     else:
-        dataset_id = ds[0]
+        dataset_id = ds[0].getId()
     return dataset_id
 
 
