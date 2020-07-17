@@ -1,12 +1,17 @@
 import argparse
 import logging
-import pandas as pd
+import json
 from getpass import getpass
 from omero.gateway import BlitzGateway
+from omero.model import DatasetImageLinkI, DatasetI, ImageI
 from jax_omeroutils import intake
 from jax_omeroutils.ezomero import get_image_ids, get_group_id, get_user_id
+from jax_omeroutils.ezomero import post_project, post_dataset
+from jax_omeroutils.ezomero import post_map_annotation
+from jax_omeroutils.ezomero import image_has_imported_filename
 
 CURRENT_MD_NS = 'jax.org/omeroutils/jaxlims/v0'
+
 
 def main(md_filepath, user_name, group, admin_user, server, port):
 
@@ -20,7 +25,7 @@ def main(md_filepath, user_name, group, admin_user, server, port):
     conn.SERVICE_OPTS.setOmeroUser(user_id)
     orphan_ids = get_image_ids(conn)
 
-    # loop over metadata, move and annotate matching images 
+    # load and prepare metadata
     md = intake.load_md_from_file(md_filepath)
 
     if 'filename' not in md.columns:
@@ -34,34 +39,65 @@ def main(md_filepath, user_name, group, admin_user, server, port):
         return
 
     md_json = json.loads(md.to_json(orient='table', index=False))
+
+    # loop over metadata, move and annotate matching images
     for row in md_json['data']:
-        _ = row.pop('OMERO_group', None)  # No longer using this field
-        project_name = 
-
-
-    for row in md.iterrows():
+        row.pop('OMERO_group', None)  # No longer using this field
         project_name = row.pop('project')
-        datset_name = row.pop('dataset')
+        dataset_name = row.pop('dataset')
         filename = row.pop('filename')
-        im_ids_to_process = [im_id for im_id in orphan_ids
-                             if image_has_imported_filename(conn,
-                                                            im_id,
-                                                            filename)]]
+        image_ids = [im_id for im_id in orphan_ids
+                     if image_has_imported_filename(conn, im_id, filename)]
+        if len(image_ids) > 0:
+            # move image into place, creating projects/datasets as necessary
+            project_id = set_or_create_project(conn, project_name)
+            dataset_id = set_or_create_dataset(conn, project_id, dataset_name)
+            link_images_to_dataset(conn, image_ids, dataset_id)
+            print(f'Moved images:{image_ids} to dataset:{dataset_id}')
+
+            # map annotations
+            ns = CURRENT_MD_NS
+            map_ann_id = post_map_annotation(conn, "Image", image_ids, row, ns)
+            print(f'Created annotation:{map_ann_id}'
+                  f' and linked to images:{image_ids}')
+
+        else:
+            print(f'Image with filename:{filename} not found in orphans')
 
     conn.close()
+    print('Complete!')
 
 
 def set_or_create_project(conn, project_name):
+    ps = conn.getObjects('Project', attributes={'name': project_name})
+    ps = list(ps)
+    if len(ps) == 0:
+        project_id = post_project(conn, project_name)
+    else:
+        project_id = ps[0]
     return project_id
 
+
 def set_or_create_dataset(conn, project_id, dataset_name):
+    ds = conn.getObjects('Dataset', opts={'project': project_id})
+    ds = list(ds)
+    if len(ds) == 0:
+        dataset_id = post_dataset(conn, dataset_name)
+    else:
+        dataset_id = ds[0]
     return dataset_id
 
 
+def link_images_to_dataset(conn, image_ids, dataset_id):
+    for im_id in image_ids:
+        link = DatasetImageLinkI()
+        link.setParent(DatasetI(dataset_id, False))
+        link.setChild(ImageI(im_id, False))
+        conn.getUpdateService().saveObject(link)
+
 
 if __name__ == "__main__":
-    description = ("Output a tsv of orphaned images for a particular group. "
-                   "Columns: omero_id, image_file, image_name")
+    description = ("Use metadata from jaxLIMS to organized orphaned files")
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('md', type=str, help='Path to jaxlims metadata')
     parser.add_argument('-u', '--user',
