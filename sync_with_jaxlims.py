@@ -73,6 +73,7 @@ def set_or_create_project(conn, project_name):
     ps = list(ps)
     if len(ps) == 0:
         project_id = post_project(conn, project_name)
+        print(f'Created new Project:{project_id}')
     else:
         project_id = ps[0].getId()
     return project_id
@@ -85,6 +86,7 @@ def set_or_create_dataset(conn, project_id, dataset_name):
     ds = list(ds)
     if len(ds) == 0:
         dataset_id = post_dataset(conn, dataset_name, project_id=project_id)
+        print(f'Created new Dataset:{dataset_id}')
     else:
         dataset_id = ds[0].getId()
     return dataset_id
@@ -99,7 +101,9 @@ def link_images_to_dataset(conn, image_ids, dataset_id):
 
 
 if __name__ == "__main__":
-    description = ("Use metadata from jaxLIMS to organized orphaned files")
+    description = ("Use metadata from jaxLIMS to organize orphaned files."
+                   " Metadata is provided as tsv. Please contact Dave Mellert"
+                   " and Mike McFarland for more details.")
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('md', type=str, help='Path to jaxlims metadata')
     parser.add_argument('-u', '--user',
