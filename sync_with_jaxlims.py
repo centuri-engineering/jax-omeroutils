@@ -8,7 +8,7 @@ from jax_omeroutils import intake
 from jax_omeroutils.ezomero import get_image_ids, get_group_id, get_user_id
 from jax_omeroutils.ezomero import post_project, post_dataset
 from jax_omeroutils.ezomero import post_map_annotation
-from jax_omeroutils.ezomero import image_has_imported_filename
+from jax_omeroutils.ezomero import filter_by_filename
 
 CURRENT_MD_NS = 'jax.org/omeroutils/jaxlims/v0'
 
@@ -43,11 +43,10 @@ def main(md_filepath, user_name, group, admin_user, server, port):
     # loop over metadata, move and annotate matching images
     for row in md_json['data']:
         row.pop('OMERO_group', None)  # No longer using this field
-        project_name = row.pop('project')
-        dataset_name = row.pop('dataset')
+        project_name = str(row.pop('project'))
+        dataset_name = str(row.pop('dataset'))
         filename = row.pop('filename')
-        image_ids = [im_id for im_id in orphan_ids
-                     if image_has_imported_filename(conn, im_id, filename)]
+        image_ids = filter_by_filename(conn, orphan_ids, filename)
         if len(image_ids) > 0:
             # move image into place, creating projects/datasets as necessary
             project_id = set_or_create_project(conn, project_name)
